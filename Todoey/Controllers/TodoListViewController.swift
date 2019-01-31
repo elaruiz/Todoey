@@ -10,48 +10,47 @@ import UIKit
 
 class TodoListViewController: UITableViewController {
 
-    var itemArray = ["Find Mike", "Buy Eggos", "Destroy Demogorgon"]
+    var itemCollection : [Item] = [Item]()
     
-    let defaults = UserDefaults.standard
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         
-        guard let items = defaults.array(forKey: "TodoListArray") else { return }
-        itemArray = items as! [String]
+        loadData()
     }
 
     // MARK: - TableView Datasource Methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+        return itemCollection.count
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-     //   let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
-        let cell = UITableViewCell(style: .default, reuseIdentifier: "ToDoItemCell")
-        cell.textLabel?.text = itemArray[indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let item = itemCollection[indexPath.row]
+        cell.textLabel?.text = item.title
+       
+        toggleCellCheckbox(cell, isCompleted: item.done)
         
         return cell
     }
     
     // MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        
         // print(itemArray[indexPath.row])
         guard let cell = tableView.cellForRow(at: indexPath) else { return }
         
-        toggleCellCheckbox(cell)
+        itemCollection[indexPath.row].done = !itemCollection[indexPath.row].done
+        
+        toggleCellCheckbox(cell, isCompleted: itemCollection[indexPath.row].done)
+        
+        saveData()
 
         tableView.deselectRow(at: indexPath, animated: true)
-    }
-    
-    func toggleCellCheckbox(_ cell: UITableViewCell) {
-        if cell.accessoryType == .checkmark {
-            cell.accessoryType = .none
-        } else {
-            cell.accessoryType = .checkmark
-        }
+        
     }
     
     //MARK: - Add New Items
@@ -61,24 +60,57 @@ class TodoListViewController: UITableViewController {
         
         let alert = UIAlertController(title: "Add New Todoey Item", message: nil, preferredStyle: .alert)
         
-        let action = UIAlertAction(title: "Add Item", style: .default){
+        let action = UIAlertAction(title: "Add Item", style: .default) {
             (action) in
             // what will happen once the user clicks the add item button on our UIAlert
           //  guard let textField = alert.textFields?.first, let text = textField.text else { return }
             guard let text = textField.text else { return }
-            self.itemArray.append(text)
+            let todo = Item(title: text)
             
-            self.defaults.set(self.itemArray, forKey: "TodoListArray")
+            self.itemCollection.append(todo)
             
-            self.tableView.reloadData()
+            self.saveData()
         }
+        
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
+
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new Item"
             textField = alertTextField
         }
         alert.addAction(action)
+        alert.addAction(cancelAction)
         
         present(alert, animated: true, completion: nil)
+    }
+    
+    // MARK: - Toggle Done Property
+    func toggleCellCheckbox(_ cell: UITableViewCell, isCompleted: Bool) {
+        cell.accessoryType = isCompleted ? .checkmark : .none
+    }
+    
+    func saveData() {
+        let encoder = PropertyListEncoder()
+        
+        do {
+            let data = try encoder.encode(itemCollection)
+            try data.write(to: dataFilePath!)
+        } catch {
+            print("Error encoding")
+        }
+        
+        tableView.reloadData()
+    }
+    
+    func loadData() {
+        if let data = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            do {
+                itemCollection = try decoder.decode([Item].self, from: data)
+            } catch {
+                print("Error decoding")
+            }
+        }
     }
 }
 
